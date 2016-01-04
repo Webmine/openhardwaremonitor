@@ -19,13 +19,16 @@ namespace OpenHardwareMonitorServerOnly
 
         static void Main(string[] args)
         {
-            new HeadlessSensorMonitor();
+            var monitor = new HeadlessSensorMonitor();
 
+            monitor.Start();
             Console.WriteLine("Server running");
 
             Console.Read();
 
             Console.WriteLine("Exiting...");
+
+            monitor.Close();
         }
 
         class HeadlessSensorMonitor
@@ -37,6 +40,7 @@ namespace OpenHardwareMonitorServerOnly
             UpdateVisitor updateVisitor;
             Timer timer;
             WmiProvider wmiProvider;
+            HttpServer server;
 
             public HeadlessSensorMonitor()
             {
@@ -50,20 +54,33 @@ namespace OpenHardwareMonitorServerOnly
                 updateVisitor = new UpdateVisitor();
                 computer = new Computer() { CPUEnabled = true, FanControllerEnabled = true, GPUEnabled = true, HDDEnabled = true, MainboardEnabled = true, RAMEnabled = true };
                 wmiProvider = new WmiProvider(computer);
+                server = new HttpServer(root, 8085);
+
                 timer = new Timer(1000);
                 timer.Elapsed += (s, a) => timer_Tick();
 
                 computer.HardwareAdded += new HardwareEventHandler(HardwareAdded);
                 computer.HardwareRemoved += new HardwareEventHandler(HardwareRemoved);
+            }
 
+            public void Start()
+            {
                 computer.Open();
-
-                
-                var server = new HttpServer(root, 8085);
 
                 server.StartHTTPListener();
 
                 timer.Start();
+            }
+
+            public void Close()
+            {
+                timer.Close();
+
+                wmiProvider.Dispose();
+
+                computer.Close();
+
+                server.StopHTTPListener();
             }
 
             private void timer_Tick()
